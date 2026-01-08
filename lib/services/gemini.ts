@@ -53,7 +53,8 @@ class GeminiService {
         role: 'user',
         content: [
           { text: prompt },
-          ...await Promise.all(images.map(async (img) => ({ image: await this.fileToDataUrl(img) })))
+          // Compress images to reduce payload size and avoid timeouts
+          ...await Promise.all(images.map(async (img) => ({ image: await this.compressImage(img) })))
         ]
       }
     ];
@@ -63,6 +64,9 @@ class GeminiService {
     const proxyUrl = 'https://corsproxy.io/?';
     const targetUrl = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
 
+    // Increase timeout by handling it? Fetch doesn't support timeout natively easily, 
+    // but the error is 504 Gateway Timeout from the proxy or server.
+    // Compressing image is the best fix.
     const response = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
       method: 'POST',
       headers: {
@@ -78,6 +82,8 @@ class GeminiService {
 
     if (!response.ok) {
       const err = await response.text();
+      // Handle HTML error pages from proxy
+      if (err.includes('<!DOCTYPE html>')) throw new Error('Proxy Connection Failed (Timeout)');
       throw new Error(`Qwen API Error: ${err}`);
     }
 
@@ -92,6 +98,41 @@ class GeminiService {
       return typeof content === 'string' ? content : JSON.stringify(content);
     }
     throw new Error('Invalid Qwen Response');
+  }
+
+  // Compress and resize image for Qwen
+  private async compressImage(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Resize to max 1024px to prevent timeouts with large payloads
+        const MAX_SIZE = 1024;
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        // Compress to JPEG quality 0.7
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
+    });
   }
 
   private async fileToDataUrl(file: File): Promise<string> {
