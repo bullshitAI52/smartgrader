@@ -16,11 +16,12 @@ interface ImagePreview {
 interface SmartUploaderProps {
   onUpload: (images: File[], totalMaxScore: number) => void;
   maxImages?: number;
+  isLoading?: boolean;
 }
 
 const SCORE_PRESETS = [100, 120, 150];
 
-export function SmartUploader({ onUpload, maxImages = 5 }: SmartUploaderProps) {
+export function SmartUploader({ onUpload, maxImages = 5, isLoading = false }: SmartUploaderProps) {
   const [images, setImages] = useState<ImagePreview[]>([]);
   const [maxScore, setMaxScore] = useState<number>(100);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
@@ -167,11 +168,11 @@ export function SmartUploader({ onUpload, maxImages = 5 }: SmartUploaderProps) {
         </Button>
         <Button
           onClick={handleUpload}
-          disabled={images.length === 0}
+          disabled={images.length === 0 || isLoading}
           className="flex-1 sm:flex-none gap-2 h-12"
         >
-          <Plus className="w-5 h-5" />
-          <span>开始批改</span>
+          {isLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Plus className="w-5 h-5" />}
+          <span>{isLoading ? '处理中...' : '开始批改'}</span>
         </Button>
       </div>
 
@@ -304,9 +305,9 @@ export function SmartUploader({ onUpload, maxImages = 5 }: SmartUploaderProps) {
                 ))}
               </div>
             </div>
-            <Button onClick={confirmUpload} className="w-full h-12 text-base font-semibold gap-2">
-              <Plus className="w-5 h-5" />
-              开始批改
+            <Button onClick={confirmUpload} disabled={isLoading} className="w-full h-12 text-base font-semibold gap-2">
+              {isLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Plus className="w-5 h-5" />}
+              {isLoading ? '正在批改中...' : '确认开始批改'}
             </Button>
           </div>
         </DialogContent>

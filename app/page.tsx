@@ -367,7 +367,7 @@ export default function Home() {
                   {!gradingResult ? (
                     <div className="w-full h-full flex flex-col">
                       {/* Using SmartUploader for input */}
-                      <SmartUploader onUpload={handleGradingUpload} />
+                      <SmartUploader onUpload={handleGradingUpload} isLoading={loading} />
                     </div>
                   ) : (
                     <div className="relative w-full h-full flex items-center justify-center">
