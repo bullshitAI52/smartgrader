@@ -4,7 +4,8 @@ export async function POST(request: NextRequest) {
   try {
     const { question, answer } = await request.json();
 
-    if (!question || question.trim().length === 0) {
+    const q = typeof question === 'string' ? question : String(question ?? '');
+    if (!q.trim()) {
       return NextResponse.json(
         { success: false, error: '请输入题目内容' },
         { status: 400 }
@@ -26,8 +27,8 @@ export async function POST(request: NextRequest) {
     const prompt = `
       你是一个苏格拉底式辅导老师。学生正在做这道题目：
       
-      题目：${question}
-      ${answer ? `学生的答案：${answer}` : ''}
+      题目：${q}
+      ${typeof answer === 'string' && answer ? `学生的答案：${answer}` : ''}
       
       请按照以下步骤进行辅导：
       
