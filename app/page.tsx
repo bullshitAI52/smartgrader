@@ -113,6 +113,8 @@ export default function Home() {
       if (message.includes('API Key')) {
         setError('无效或缺失的 API Key。请检查您的设置。');
         setShowApiKeyModal(true);
+      } else if (message.includes('Failed to fetch')) {
+        setError('网络连接失败。如使用 Google 模型，请开启全局代理；推荐切换至"阿里通义千问"以获得稳定体验。');
       } else {
         setError(message);
       }
@@ -150,7 +152,10 @@ export default function Home() {
             return await geminiService.recognizeText(file);
           } catch (err: any) {
             console.error('OCR Error:', err);
-            const msg = err instanceof Error ? err.message : String(err);
+            let msg = err instanceof Error ? err.message : String(err);
+            if (msg.includes('Failed to fetch')) {
+              msg = '网络失败 (需全局代理或切换阿里Qwen)';
+            }
             return `[识别失败] ${msg}`;
           }
         })
@@ -190,7 +195,11 @@ export default function Home() {
       setHwResult(solution);
     } catch (err: any) {
       const message = err instanceof Error ? err.message : 'An error occurred during homework solving';
-      setError(message);
+      if (message.includes('Failed to fetch')) {
+        setError('网络连接失败。如使用 Google 模型，请开启全局代理；推荐切换至"阿里通义千问"。');
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
