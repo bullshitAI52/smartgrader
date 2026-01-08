@@ -169,6 +169,11 @@ class GeminiService {
       const prompt = `
 你是一位专业的试卷批改专家。请仔细分析提供的试卷图片，并严格按照以下要求输出JSON格式的批改结果。
 
+【重要】输出要求：
+- 只输出JSON格式的数据，不要添加任何说明文字
+- 不要在JSON前后添加任何解释或总结
+- 直接返回纯JSON，从 { 开始，到 } 结束
+
 【重要】语言要求：
 - 检测试卷的语言（中文/英文等）
 - 中文试卷：所有分析、解释、标签必须使用纯中文，不要出现英文
@@ -210,9 +215,19 @@ class GeminiService {
 
       try {
         const text = await this.callQwenVL(prompt, images);
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error('Qwen response did not contain valid JSON');
-        return JSON.parse(jsonMatch[0]) as ExamGradingResult;
+        console.log('Qwen raw response:', text.substring(0, 500)); // Debug log
+
+        // Try to extract JSON more robustly
+        // Look for the first { and last } to get the complete JSON object
+        const firstBrace = text.indexOf('{');
+        const lastBrace = text.lastIndexOf('}');
+
+        if (firstBrace === -1 || lastBrace === -1 || firstBrace >= lastBrace) {
+          throw new Error(`Qwen response did not contain valid JSON. Response: ${text.substring(0, 200)}`);
+        }
+
+        const jsonStr = text.substring(firstBrace, lastBrace + 1);
+        return JSON.parse(jsonStr) as ExamGradingResult;
       } catch (e: any) {
         throw new Error(`Qwen Grading Failed: ${e.message}`);
       }
