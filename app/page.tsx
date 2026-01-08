@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { SmartUploader } from '@/components/shared/smart-uploader';
+import imageCompression from 'browser-image-compression';
 import { GradingOverlay } from '@/components/grading/grading-overlay';
 import { ExportCanvas } from '@/components/grading/export-canvas';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,6 +38,7 @@ export default function Home() {
 
   // -- Homework State --
   const [hwImage, setHwImage] = useState<string | null>(null);
+  const [hwFile, setHwFile] = useState<File | null>(null);
   const [hwQuestion, setHwQuestion] = useState('');
   const [hwResult, setHwResult] = useState<string | null>(null);
 
@@ -170,14 +172,30 @@ export default function Home() {
   };
 
   // 3. Homework Handler
-  const handleHwUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleHwUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setHwImage(URL.createObjectURL(file));
+    if (!file) return;
+
+    try {
+      const options = {
+        maxSizeMB: 2,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+        initialQuality: 0.85,
+      };
+      const compressedFile = await imageCompression(file, options);
+      setHwFile(compressedFile);
+      setHwImage(URL.createObjectURL(compressedFile));
+    } catch (error) {
+      console.error('Homework compression failed:', error);
+      setHwFile(file);
+      setHwImage(URL.createObjectURL(file));
+    }
   };
 
   const submitHomework = async () => {
     if (!checkApiKey()) return;
-    if (!hwImage) {
+    if (!hwFile) {
       setError('请先上传题目图片');
       return;
     }
@@ -185,13 +203,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     try {
-      // Need the file object again, fetching from blob url is one way or just storing file in state
-      // For simplicity/robustness, let's fetch the blob
-      const response = await fetch(hwImage);
-      const blob = await response.blob();
-      const file = new File([blob], "homework.jpg", { type: blob.type });
-
-      const solution = await geminiService.solveHomework(file, hwQuestion);
+      const solution = await geminiService.solveHomework(hwFile, hwQuestion);
       setHwResult(solution);
     } catch (err: any) {
       const message = err instanceof Error ? err.message : 'An error occurred during homework solving';

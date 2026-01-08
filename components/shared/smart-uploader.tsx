@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Upload, X, ArrowUp, ArrowDown, Image as ImageIcon, Plus } from 'lucide-react';
-import imageCompression from 'browser-image-compression';
+
 
 interface ImagePreview {
   id: string;
@@ -39,17 +39,55 @@ export function SmartUploader({ onUpload, maxImages = 5, isLoading = false }: Sm
 
     setError(null);
 
+    const compressImage = async (file: File): Promise<File> => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.src = URL.createObjectURL(file);
+        img.onload = () => {
+          URL.revokeObjectURL(img.src);
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Resize to max 1024px (matching Qwen requirements and generic optimization)
+          const MAX_SIZE = 1024;
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height *= MAX_SIZE / width;
+              width = MAX_SIZE;
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width *= MAX_SIZE / height;
+              height = MAX_SIZE;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            } else {
+              reject(new Error('Canvas to Blob failed'));
+            }
+          }, 'image/jpeg', 0.7);
+        };
+        img.onerror = (error) => reject(error);
+      });
+    };
+
     const processedFiles = await Promise.all(
       files.map(async (file) => {
-        const options = {
-          maxSizeMB: 2,
-          maxWidthOrHeight: 1920,
-          useWebWorker: true,
-          initialQuality: 0.85,
-        };
-
         try {
-          const compressedFile = await imageCompression(file, options);
+          const compressedFile = await compressImage(file);
           const preview = URL.createObjectURL(compressedFile);
           return {
             id: Math.random().toString(36).substring(7),
