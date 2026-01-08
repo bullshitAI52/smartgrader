@@ -52,7 +52,9 @@ class GeminiService {
     images: File[],
     totalMaxScore: number = 100
   ): Promise<ExamGradingResult> {
+    // ensureInitialized here primarily checks for apiKey
     this.ensureInitialized();
+    const genAI = new GoogleGenerativeAI(this.apiKey!);
 
     // ... existing implementation details for fileToBase64 conversion if needed explicitly ...
     // Note: The previous implementation logic assumed fileToBase64 helper exists. 
@@ -81,6 +83,7 @@ class GeminiService {
       5. Categorize errors as 'calculation', 'concept', or 'logic'
       6. Generate bounding boxes for each question (normalized 0-1000 scale)
       7. Provide summary tags for the overall performance
+      8. Return strictly legitimate JSON only.
 
       Return STRICT JSON in this format:
       {
@@ -108,23 +111,32 @@ class GeminiService {
       }
     `;
 
-    // ... Using existing proModel ...
-    try {
-      const result = await this.proModel!.generateContent([prompt, ...imageParts]);
-      const response = await result.response;
-      const text = response.text();
+    const modelsToTry = ['gemini-1.5-pro-002', 'gemini-1.5-flash-001', 'gemini-1.5-pro'];
+    let lastError = null;
 
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('Failed to parse JSON from AI response');
+    for (const modelName of modelsToTry) {
+      try {
+        console.log(`Attempting grading with model: ${modelName}`);
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent([prompt, ...imageParts]);
+        const response = await result.response;
+        const text = response.text();
+
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          throw new Error(`Failed to parse JSON from ${modelName} response`);
+        }
+
+        return JSON.parse(jsonMatch[0]) as ExamGradingResult;
+      } catch (error: any) {
+        console.warn(`Model ${modelName} failed:`, error);
+        lastError = error;
+        // Continue to next model
       }
-
-      return JSON.parse(jsonMatch[0]) as ExamGradingResult;
-    } catch (error: any) {
-      console.error('Error grading exam:', error);
-      const msg = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to grade exam: ${msg}`);
     }
+
+    const msg = lastError instanceof Error ? lastError.message : String(lastError);
+    throw new Error(`All models failed to grade exam. Last error: ${msg}`);
   }
 
   // New Method: OCR
