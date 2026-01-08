@@ -30,8 +30,9 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(0);
 
   // -- OCR State --
-  const [ocrImage, setOcrImage] = useState<string | null>(null);
-  const [ocrResult, setOcrResult] = useState<string | null>(null);
+  const [ocrImages, setOcrImages] = useState<string[]>([]);
+  const [ocrResults, setOcrResults] = useState<string[]>([]);
+  const [ocrCurrentPage, setOcrCurrentPage] = useState(0);
 
   // -- Homework State --
   const [hwImage, setHwImage] = useState<string | null>(null);
@@ -79,8 +80,8 @@ export default function Home() {
       return;
     }
 
-    if (files.length > 5) {
-      setError('最多上传 5 张图片');
+    if (files.length > 20) {
+      setError('最多上传 20 张图片');
       return;
     }
 
@@ -113,22 +114,36 @@ export default function Home() {
     setGradingImages([]);
     setGradingResult(null);
     setImageDimensions(new Map());
+    setCurrentPage(0);
   };
 
   // 2. OCR Handler
   const handleOcrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!checkApiKey()) return;
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    setOcrImage(URL.createObjectURL(file));
-    setOcrResult(null);
+    // Reset state for new batch
+    setOcrImages(files.map(f => URL.createObjectURL(f)));
+    setOcrResults(new Array(files.length).fill(''));
+    setOcrCurrentPage(0);
+
     setLoading(true);
     setError(null);
 
     try {
-      const text = await geminiService.recognizeText(file);
-      setOcrResult(text);
+      // Process all images
+      const results = await Promise.all(
+        files.map(async (file) => {
+          try {
+            return await geminiService.recognizeText(file);
+          } catch (err) {
+            console.error(err);
+            return "识别失败";
+          }
+        })
+      );
+      setOcrResults(results);
     } catch (err: any) {
       const message = err instanceof Error ? err.message : 'An error occurred during OCR';
       setError(message);
@@ -256,22 +271,30 @@ export default function Home() {
           <div className="animate-in fade-in grid grid-cols-1 md:grid-cols-2 gap-6 h-[calc(100vh-140px)] min-h-[500px]">
             {/* Left: Image Source */}
             <div className="flex flex-col gap-4 h-full">
-              <div className="text-sm font-semibold text-gray-600 flex items-center gap-2">
-                <UploadCloud className="w-4 h-4" /> 原图预览
+              <div className="text-sm font-semibold text-gray-600 flex items-center justify-between">
+                <span className="flex items-center gap-2"><UploadCloud className="w-4 h-4" /> 原图预览</span>
+                {ocrImages.length > 1 && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <Button variant="ghost" size="sm" onClick={() => setOcrCurrentPage(p => Math.max(0, p - 1))} disabled={ocrCurrentPage === 0}>上一页</Button>
+                    <span>{ocrCurrentPage + 1}/{ocrImages.length}</span>
+                    <Button variant="ghost" size="sm" onClick={() => setOcrCurrentPage(p => Math.min(ocrImages.length - 1, p + 1))} disabled={ocrCurrentPage === ocrImages.length - 1}>下一页</Button>
+                  </div>
+                )}
               </div>
               <div className="flex-1 border-2 border-dashed border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors relative flex items-center justify-center overflow-hidden">
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   onChange={handleOcrUpload}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 />
-                {ocrImage ? (
-                  <img src={ocrImage} className="w-full h-full object-contain p-4" />
+                {ocrImages.length > 0 ? (
+                  <img src={ocrImages[ocrCurrentPage]} className="w-full h-full object-contain p-4" />
                 ) : (
                   <div className="text-center text-gray-400">
                     <ScanText className="w-16 h-16 mx-auto mb-3 opacity-30" />
-                    <p className="font-medium">点击上传图片</p>
+                    <p className="font-medium">点击上传图片 (支持批量)</p>
                     <p className="text-xs mt-1">支持 JPG, PNG, WEBP</p>
                   </div>
                 )}
@@ -284,14 +307,14 @@ export default function Home() {
                 <div className="text-sm font-semibold text-gray-600 flex items-center gap-2">
                   <FileText className="w-4 h-4" /> 识别结果
                 </div>
-                {ocrResult && (
+                {ocrResults[ocrCurrentPage] && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-8 gap-1 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
-                    onClick={() => navigator.clipboard.writeText(ocrResult)}
+                    onClick={() => navigator.clipboard.writeText(ocrResults[ocrCurrentPage])}
                   >
-                    <Copy className="w-3 h-3" /> 复制
+                    <Copy className="w-3 h-3" /> 复制当前页
                   </Button>
                 )}
               </div>
@@ -300,15 +323,19 @@ export default function Home() {
                   <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-20">
                     <div className="flex flex-col items-center gap-2 text-indigo-600">
                       <RefreshCw className="w-8 h-8 animate-spin" />
-                      <span className="text-sm font-medium">AI 正在识别文字...</span>
+                      <span className="text-sm font-medium">AI 正在识别 {ocrImages.length} 页文字...</span>
                     </div>
                   </div>
                 ) : null}
                 <textarea
                   className="w-full h-full p-6 resize-none focus:outline-none text-gray-700 leading-relaxed custom-scrollbar"
                   placeholder="识别到的文字将显示在这里..."
-                  value={ocrResult || ''}
-                  onChange={(e) => setOcrResult(e.target.value)}
+                  value={ocrResults[ocrCurrentPage] || ''}
+                  onChange={(e) => {
+                    const newResults = [...ocrResults];
+                    newResults[ocrCurrentPage] = e.target.value;
+                    setOcrResults(newResults);
+                  }}
                 />
               </div>
             </div>
