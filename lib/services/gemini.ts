@@ -167,43 +167,46 @@ class GeminiService {
       if (!this.qwenApiKey) throw new Error('请先设置通义千问 API Key');
 
       const prompt = `
-            You are an expert exam grader. Analyze the provided exam images and outputs strictly legitimate JSON.
-            
-            CRITICAL LANGUAGE REQUIREMENT:
-            - First, detect the language of the exam content (Chinese, English, etc.)
-            - Provide ALL analysis, explanations, and summary_tags in the SAME language as the exam
-            - For Chinese exams: Use ONLY Chinese in "analysis" and "summary_tags" fields
-            - For English exams: Use ONLY English in "analysis" and "summary_tags" fields
-            - DO NOT mix languages in your response
-            
-            Format Requirements:
-            1. Total Score & Max Score (${totalMaxScore})
-            2. For each question: status (correct/wrong), score, deduction, analysis in exam's language.
-            3. Return JSON Structure:
-            {
-                "total_score": number,
-                "total_max_score": ${totalMaxScore},
-                "pages": [
-                {
-                    "image_url": "page_1",
-                    "page_score": number,
-                    "questions": [
-                    {
-                        "id": number,
-                        "status": "correct"|"wrong"|"partial",
-                        "score_obtained": number,
-                        "score_max": number,
-                        "deduction": number,
-                        "box_2d": [0,0,0,0],
-                        "analysis": "string (in exam's language)",
-                        "error_type": "calculation"|"concept"|"logic"
-                    }
-                    ]
-                }
-                ],
-                "summary_tags": ["tag1 (in exam's language)", "tag2"]
-            }
-         `;
+你是一位专业的试卷批改专家。请仔细分析提供的试卷图片，并严格按照以下要求输出JSON格式的批改结果。
+
+【重要】语言要求：
+- 检测试卷的语言（中文/英文等）
+- 如果是中文试卷，所有分析、解释、标签必须使用纯中文，绝对不要出现任何英文单词
+- 如果是英文试卷，所有分析使用纯英文
+- 禁止中英文混用
+
+批改要求：
+1. 识别所有题目
+2. 判断每题的正误状态（正确/错误/部分正确）
+3. 计算得分，满分为 ${totalMaxScore}
+4. 对于错题，用试卷的语言提供详细的解题步骤和正确答案
+5. 错误类型分类：calculation（计算错误）、concept（概念错误）、logic（逻辑错误）
+
+返回严格的JSON格式：
+{
+    "total_score": 数字,
+    "total_max_score": ${totalMaxScore},
+    "pages": [
+    {
+        "image_url": "page_1",
+        "page_score": 数字,
+        "questions": [
+        {
+            "id": 题号（数字）,
+            "status": "correct"或"wrong"或"partial",
+            "score_obtained": 实际得分,
+            "score_max": 满分,
+            "deduction": 扣分,
+            "box_2d": [0,0,0,0],
+            "analysis": "详细解析（必须使用试卷的语言，中文试卷用中文，英文试卷用英文）",
+            "error_type": "calculation"或"concept"或"logic"
+        }
+        ]
+    }
+    ],
+    "summary_tags": ["标签1（使用试卷语言）", "标签2"]
+}
+       `;
 
       try {
         const text = await this.callQwenVL(prompt, images);
@@ -234,49 +237,49 @@ class GeminiService {
 
     // ... (keep prompt definition) ...
     const prompt = `
-      You are an expert exam grader. Analyze the following exam images and provide a detailed grading result.
-      
-      CRITICAL LANGUAGE REQUIREMENT:
-      - First, detect the language of the exam content (Chinese, English, Math symbols, etc.)
-      - Provide ALL text fields ("analysis", "summary_tags") in the SAME language as the exam
-      - For Chinese exams: Use ONLY Chinese for analysis and tags (例如："计算错误"、"概念理解不足")
-      - For English exams: Use ONLY English for analysis and tags
-      - DO NOT mix languages - keep your response language consistent with the exam language
-      
-      IMPORTANT REQUIREMENTS:
-      1. Identify all questions on the exam
-      2. For each question, determine if the answer is correct, wrong, or partially correct
-      3. Calculate scores based on the total max score of ${totalMaxScore}
-      4. For wrong answers, provide step-by-step solution explanations IN THE EXAM'S LANGUAGE
-      5. Categorize errors as 'calculation', 'concept', or 'logic'
-      6. Generate bounding boxes for each question (normalized 0-1000 scale)
-      7. Provide summary tags for the overall performance IN THE EXAM'S LANGUAGE
-      8. Return strictly legitimate JSON only.
+你是一位专业的试卷批改专家。请仔细分析以下试卷图片，并提供详细的批改结果。
 
-      Return STRICT JSON in this format:
-      {
-        "total_score": number,
-        "total_max_score": ${totalMaxScore},
-        "pages": [
-          {
-            "image_url": string (page number reference),
-            "page_score": number,
-            "questions": [
-              {
-                "id": number,
-                "status": "correct" | "wrong" | "partial",
-                "score_obtained": number,
-                "score_max": number,
-                "deduction": number,
-                "box_2d": [number, number, number, number],
-                "analysis": string (detailed solution in exam's language),
-                "error_type": "calculation" | "concept" | "logic" (if applicable)
-              }
-            ]
-          }
-        ],
-        "summary_tags": string[] (in exam's language)
-      }
+【重要】语言要求：
+- 首先检测试卷的语言（中文、英文、数学等）
+- 所有文本字段（"analysis"、"summary_tags"）必须使用与试卷相同的语言
+- 中文试卷：analysis 和 tags 必须使用纯中文（例如："计算错误"、"概念理解不足"、"步骤不完整"）
+- 英文试卷：analysis 和 tags 使用纯英文
+- 严禁混合语言 - 保持输出语言与试卷语言一致
+
+批改要求：
+1. 识别试卷上的所有题目
+2. 判断每道题的答案是否正确、错误或部分正确
+3. 根据总分 ${totalMaxScore} 计算各题得分
+4. 对于错题，用试卷的语言提供详细的分步解题过程和正确答案
+5. 将错误分类为：'calculation'（计算错误）、'concept'（概念错误）或 'logic'（逻辑错误）
+6. 为每道题生成边界框坐标（0-1000 归一化比例）
+7. 用试卷的语言提供整体表现的总结标签
+8. 只返回严格合法的 JSON 格式
+
+返回严格的 JSON 格式：
+{
+  "total_score": 数字,
+  "total_max_score": ${totalMaxScore},
+  "pages": [
+    {
+      "image_url": 字符串（页码引用）,
+      "page_score": 数字,
+      "questions": [
+        {
+          "id": 数字,
+          "status": "correct" | "wrong" | "partial",
+          "score_obtained": 数字,
+          "score_max": 数字,
+          "deduction": 数字,
+          "box_2d": [数字, 数字, 数字, 数字],
+          "analysis": 字符串（用试卷语言详细解答）,
+          "error_type": "calculation" | "concept" | "logic"（如适用）
+        }
+      ]
+    }
+  ],
+  "summary_tags": 字符串数组（用试卷语言）
+}
     `;
 
     // Add gemini-2.0-flash-exp to the list
