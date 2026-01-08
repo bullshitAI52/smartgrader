@@ -137,9 +137,10 @@ export default function Home() {
         files.map(async (file) => {
           try {
             return await geminiService.recognizeText(file);
-          } catch (err) {
-            console.error(err);
-            return "识别失败";
+          } catch (err: any) {
+            console.error('OCR Error:', err);
+            const msg = err instanceof Error ? err.message : String(err);
+            return `[识别失败] ${msg}`;
           }
         })
       );
