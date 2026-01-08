@@ -74,7 +74,7 @@ class GeminiService {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'qwen-vl-max',
+        model: 'qwen-vl-plus',
         input: { messages }
       })
     });
@@ -108,8 +108,8 @@ class GeminiService {
         let width = img.width;
         let height = img.height;
 
-        // Resize to max 1024px to prevent timeouts with large payloads
-        const MAX_SIZE = 1024;
+        // Resize to max 800px to prevent timeouts with large payloads
+        const MAX_SIZE = 800;
         if (width > height) {
           if (width > MAX_SIZE) {
             height *= MAX_SIZE / width;
@@ -126,8 +126,8 @@ class GeminiService {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
-        // Compress to JPEG quality 0.7
-        resolve(canvas.toDataURL('image/jpeg', 0.7));
+        // Compress to JPEG quality 0.5
+        resolve(canvas.toDataURL('image/jpeg', 0.5));
       };
       img.onerror = reject;
       img.src = URL.createObjectURL(file);
