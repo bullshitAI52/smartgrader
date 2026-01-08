@@ -53,6 +53,10 @@ class GeminiService {
   ): Promise<ExamGradingResult> {
     this.ensureInitialized();
 
+    // ... existing implementation details for fileToBase64 conversion if needed explicitly ...
+    // Note: The previous implementation logic assumed fileToBase64 helper exists. 
+    // I will inline the logic or ensure the helper is used correctly. 
+
     const imageParts = await Promise.all(
       images.map(async (image) => {
         const base64 = await this.fileToBase64(image);
@@ -103,6 +107,7 @@ class GeminiService {
       }
     `;
 
+    // ... Using existing proModel ...
     try {
       const result = await this.proModel!.generateContent([prompt, ...imageParts]);
       const response = await result.response;
@@ -113,12 +118,41 @@ class GeminiService {
         throw new Error('Failed to parse JSON from AI response');
       }
 
-      const parsedResult = JSON.parse(jsonMatch[0]);
-      return parsedResult as ExamGradingResult;
+      return JSON.parse(jsonMatch[0]) as ExamGradingResult;
     } catch (error) {
       console.error('Error grading exam:', error);
       throw new Error('Failed to grade exam');
     }
+  }
+
+  // New Method: OCR
+  async recognizeText(image: File): Promise<string> {
+    this.ensureInitialized();
+    const base64 = await this.fileToBase64(image);
+    const part = { inlineData: { data: base64, mimeType: image.type } };
+
+    const prompt = "Please extract all the text from this image exactly as it appears. Preserve formatting where possible.";
+
+    const result = await this.proModel!.generateContent([prompt, part]);
+    return result.response.text();
+  }
+
+  // New Method: Homework Solver
+  async solveHomework(image: File, instruction?: string): Promise<string> {
+    this.ensureInitialized();
+    const base64 = await this.fileToBase64(image);
+    const part = { inlineData: { data: base64, mimeType: image.type } };
+
+    const prompt = `
+      You are a helpful AI tutor. The user has uploaded a homework problem.
+      Instruction: ${instruction || "Solve this problem step-by-step and explain the concepts."}
+      
+      Please provide a clear, well-formatted response using Markdown.
+      If it's a math problem, show calculation steps.
+    `;
+
+    const result = await this.proModel!.generateContent([prompt, part]);
+    return result.response.text();
   }
 
   private async fileToBase64(file: File): Promise<string> {
