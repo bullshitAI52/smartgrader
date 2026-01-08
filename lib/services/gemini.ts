@@ -169,9 +169,16 @@ class GeminiService {
       const prompt = `
             You are an expert exam grader. Analyze the provided exam images and outputs strictly legitimate JSON.
             
+            CRITICAL LANGUAGE REQUIREMENT:
+            - First, detect the language of the exam content (Chinese, English, etc.)
+            - Provide ALL analysis, explanations, and summary_tags in the SAME language as the exam
+            - For Chinese exams: Use ONLY Chinese in "analysis" and "summary_tags" fields
+            - For English exams: Use ONLY English in "analysis" and "summary_tags" fields
+            - DO NOT mix languages in your response
+            
             Format Requirements:
             1. Total Score & Max Score (${totalMaxScore})
-            2. For each question: status (correct/wrong), score, deduction, analysis.
+            2. For each question: status (correct/wrong), score, deduction, analysis in exam's language.
             3. Return JSON Structure:
             {
                 "total_score": number,
@@ -188,12 +195,13 @@ class GeminiService {
                         "score_max": number,
                         "deduction": number,
                         "box_2d": [0,0,0,0],
-                        "analysis": "string"
+                        "analysis": "string (in exam's language)",
+                        "error_type": "calculation"|"concept"|"logic"
                     }
                     ]
                 }
                 ],
-                "summary_tags": ["tag1", "tag2"]
+                "summary_tags": ["tag1 (in exam's language)", "tag2"]
             }
          `;
 
@@ -228,14 +236,21 @@ class GeminiService {
     const prompt = `
       You are an expert exam grader. Analyze the following exam images and provide a detailed grading result.
       
+      CRITICAL LANGUAGE REQUIREMENT:
+      - First, detect the language of the exam content (Chinese, English, Math symbols, etc.)
+      - Provide ALL text fields ("analysis", "summary_tags") in the SAME language as the exam
+      - For Chinese exams: Use ONLY Chinese for analysis and tags (例如："计算错误"、"概念理解不足")
+      - For English exams: Use ONLY English for analysis and tags
+      - DO NOT mix languages - keep your response language consistent with the exam language
+      
       IMPORTANT REQUIREMENTS:
       1. Identify all questions on the exam
       2. For each question, determine if the answer is correct, wrong, or partially correct
       3. Calculate scores based on the total max score of ${totalMaxScore}
-      4. For wrong answers, provide step-by-step solution explanations
+      4. For wrong answers, provide step-by-step solution explanations IN THE EXAM'S LANGUAGE
       5. Categorize errors as 'calculation', 'concept', or 'logic'
       6. Generate bounding boxes for each question (normalized 0-1000 scale)
-      7. Provide summary tags for the overall performance
+      7. Provide summary tags for the overall performance IN THE EXAM'S LANGUAGE
       8. Return strictly legitimate JSON only.
 
       Return STRICT JSON in this format:
@@ -254,13 +269,13 @@ class GeminiService {
                 "score_max": number,
                 "deduction": number,
                 "box_2d": [number, number, number, number],
-                "analysis": string (detailed step-by-step solution for wrong answers),
+                "analysis": string (detailed solution in exam's language),
                 "error_type": "calculation" | "concept" | "logic" (if applicable)
               }
             ]
           }
         ],
-        "summary_tags": string[]
+        "summary_tags": string[] (in exam's language)
       }
     `;
 
