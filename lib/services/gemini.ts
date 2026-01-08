@@ -58,12 +58,17 @@ class GeminiService {
       }
     ];
 
-    const response = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation', {
+    // Use a CORS proxy to bypass browser restrictions on GitHub Pages
+    // Note: In a real production app with a backend, you should proxy this through your own server.
+    const proxyUrl = 'https://corsproxy.io/?';
+    const targetUrl = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
+
+    const response = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.qwenApiKey}`,
         'Content-Type': 'application/json',
-        'X-DashScope-WorkSpace': 'modal' // Optional
+        'X-DashScope-WorkSpace': 'modal'
       },
       body: JSON.stringify({
         model: 'qwen-vl-max',
