@@ -171,15 +171,15 @@ class GeminiService {
 
 【重要】语言要求：
 - 检测试卷的语言（中文/英文等）
-- 如果是中文试卷，所有分析、解释、标签必须使用纯中文，绝对不要出现任何英文单词
-- 如果是英文试卷，所有分析使用纯英文
-- 禁止中英文混用
+- 中文试卷：所有分析、解释、标签必须使用纯中文，不要出现英文
+- 英文试卷：分析用英文，并在关键概念后用中文补充解释，格式如 "concept (概念)"
+- 数学/理科试卷：用中文解释，公式和符号保持原样
 
 批改要求：
 1. 识别所有题目
 2. 判断每题的正误状态（正确/错误/部分正确）
 3. 计算得分，满分为 ${totalMaxScore}
-4. 对于错题，用试卷的语言提供详细的解题步骤和正确答案
+4. 对于错题，提供详细的解题步骤和正确答案
 5. 错误类型分类：calculation（计算错误）、concept（概念错误）、logic（逻辑错误）
 
 返回严格的JSON格式：
@@ -198,13 +198,13 @@ class GeminiService {
             "score_max": 满分,
             "deduction": 扣分,
             "box_2d": [0,0,0,0],
-            "analysis": "详细解析（必须使用试卷的语言，中文试卷用中文，英文试卷用英文）",
+            "analysis": "详细解析（中文试卷用纯中文；英文试卷用英文+中文解释）",
             "error_type": "calculation"或"concept"或"logic"
         }
         ]
     }
     ],
-    "summary_tags": ["标签1（使用试卷语言）", "标签2"]
+    "summary_tags": ["标签1", "标签2"]
 }
        `;
 
@@ -241,19 +241,18 @@ class GeminiService {
 
 【重要】语言要求：
 - 首先检测试卷的语言（中文、英文、数学等）
-- 所有文本字段（"analysis"、"summary_tags"）必须使用与试卷相同的语言
 - 中文试卷：analysis 和 tags 必须使用纯中文（例如："计算错误"、"概念理解不足"、"步骤不完整"）
-- 英文试卷：analysis 和 tags 使用纯英文
-- 严禁混合语言 - 保持输出语言与试卷语言一致
+- 英文试卷：analysis 用英文书写，并在关键术语后用括号补充中文解释，如 "The derivative (导数) is incorrect"
+- 数学/理科试卷：用中文解释，公式符号保持原样
 
 批改要求：
 1. 识别试卷上的所有题目
 2. 判断每道题的答案是否正确、错误或部分正确
 3. 根据总分 ${totalMaxScore} 计算各题得分
-4. 对于错题，用试卷的语言提供详细的分步解题过程和正确答案
+4. 对于错题，提供详细的分步解题过程和正确答案
 5. 将错误分类为：'calculation'（计算错误）、'concept'（概念错误）或 'logic'（逻辑错误）
 6. 为每道题生成边界框坐标（0-1000 归一化比例）
-7. 用试卷的语言提供整体表现的总结标签
+7. 提供整体表现的总结标签
 8. 只返回严格合法的 JSON 格式
 
 返回严格的 JSON 格式：
@@ -272,13 +271,13 @@ class GeminiService {
           "score_max": 数字,
           "deduction": 数字,
           "box_2d": [数字, 数字, 数字, 数字],
-          "analysis": 字符串（用试卷语言详细解答）,
+          "analysis": 字符串（中文试卷用纯中文；英文试卷用英文+中文注释）,
           "error_type": "calculation" | "concept" | "logic"（如适用）
         }
       ]
     }
   ],
-  "summary_tags": 字符串数组（用试卷语言）
+  "summary_tags": 字符串数组
 }
     `;
 
@@ -315,7 +314,7 @@ class GeminiService {
   // New Method: OCR
   async recognizeText(image: File): Promise<string> {
     if (this.activeProvider === 'qwen') {
-      const prompt = "请精确提取图片中的所有文字内容，保持原有格式。识别图片中的语言（中文/英文等），并用相同语言输出结果。";
+      const prompt = "请精确提取图片中的所有文字内容，保持原有格式。直接输出识别到的文字，不要添加任何解释或翻译。";
       try {
         return await this.callQwenVL(prompt, [image]);
       } catch (e: any) {
@@ -328,7 +327,7 @@ class GeminiService {
     const base64 = await this.fileToBase64(image);
     const part = { inlineData: { data: base64, mimeType: image.type } };
 
-    const prompt = "请精确提取图片中的所有文字内容，保持原有格式。识别图片中的语言（中文/英文等），并用相同语言输出结果。";
+    const prompt = "请精确提取图片中的所有文字内容，保持原有格式。直接输出识别到的文字，不要添加任何解释或翻译。";
 
     // Try Gemini 2.0 Flash first
     const modelsToTry = ['gemini-2.0-flash-exp', 'gemini-1.5-flash-001', 'gemini-1.5-flash', 'gemini-1.5-pro-002', 'gemini-1.5-pro'];
@@ -355,10 +354,10 @@ class GeminiService {
 你是一位专业的AI辅导老师。学生上传了一道作业题。
 
 【重要】语言要求：
-- 检测题目的语言（中文/英文等）
-- 必须使用与题目相同的语言进行解答
-- 中文题目用中文解答，英文题目用英文解答
-- 严禁混合语言
+- 检测题目的语言（中文/英文/数学等）
+- 中文题目：用纯中文解答
+- 英文题目：用英文解答，并在关键概念后用括号补充中文解释，如 "derivative (导数)"
+- 数学题：用中文解释步骤，公式符号保持原样
 
 用户补充说明：${instruction || "请逐步解答这道题，并解释相关概念。"}
 
@@ -381,10 +380,10 @@ class GeminiService {
 你是一位专业的AI辅导老师。学生上传了一道作业题。
 
 【重要】语言要求：
-- 检测题目的语言（中文/英文等）
-- 必须使用与题目相同的语言进行解答
-- 中文题目用中文解答，英文题目用英文解答
-- 严禁混合语言
+- 检测题目的语言（中文/英文/数学等）
+- 中文题目：用纯中文解答
+- 英文题目：用英文解答，并在关键概念后用括号补充中文解释，如 "derivative (导数)"
+- 数学题：用中文解释步骤，公式符号保持原样
 
 用户补充说明：${instruction || "请逐步解答这道题，并解释相关概念。"}
 
