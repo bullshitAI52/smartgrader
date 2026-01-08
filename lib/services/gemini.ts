@@ -52,14 +52,11 @@ class GeminiService {
     images: File[],
     totalMaxScore: number = 100
   ): Promise<ExamGradingResult> {
-    // ensureInitialized here primarily checks for apiKey
+    // ... (keep ensureInitialized and genAI setup) ...
     this.ensureInitialized();
     const genAI = new GoogleGenerativeAI(this.apiKey!);
 
-    // ... existing implementation details for fileToBase64 conversion if needed explicitly ...
-    // Note: The previous implementation logic assumed fileToBase64 helper exists. 
-    // I will inline the logic or ensure the helper is used correctly. 
-
+    // ... (keep imageParts processing) ...
     const imageParts = await Promise.all(
       images.map(async (image) => {
         const base64 = await this.fileToBase64(image);
@@ -72,6 +69,7 @@ class GeminiService {
       })
     );
 
+    // ... (keep prompt definition) ...
     const prompt = `
       You are an expert exam grader. Analyze the following exam images and provide a detailed grading result.
       
@@ -111,10 +109,12 @@ class GeminiService {
       }
     `;
 
-    const modelsToTry = ['gemini-1.5-pro-002', 'gemini-1.5-flash-001', 'gemini-1.5-pro'];
+    // Add gemini-2.0-flash-exp to the list
+    const modelsToTry = ['gemini-2.0-flash-exp', 'gemini-1.5-pro-002', 'gemini-1.5-flash-001', 'gemini-1.5-pro'];
     let lastError = null;
 
     for (const modelName of modelsToTry) {
+      // ... (keep loop logic) ...
       try {
         console.log(`Attempting grading with model: ${modelName}`);
         const model = genAI.getGenerativeModel({ model: modelName });
@@ -131,10 +131,10 @@ class GeminiService {
       } catch (error: any) {
         console.warn(`Model ${modelName} failed:`, error);
         lastError = error;
-        // Continue to next model
       }
     }
 
+    // ... (keep final error throw) ...
     const msg = lastError instanceof Error ? lastError.message : String(lastError);
     throw new Error(`All models failed to grade exam. Last error: ${msg}`);
   }
@@ -148,8 +148,8 @@ class GeminiService {
 
     const prompt = "Please extract all the text from this image exactly as it appears. Preserve formatting where possible.";
 
-    // Try explicit version first, then alias, then pro
-    const modelsToTry = ['gemini-1.5-flash-001', 'gemini-1.5-flash', 'gemini-1.5-pro-002', 'gemini-1.5-pro'];
+    // Try Gemini 2.0 Flash first
+    const modelsToTry = ['gemini-2.0-flash-exp', 'gemini-1.5-flash-001', 'gemini-1.5-flash', 'gemini-1.5-pro-002', 'gemini-1.5-pro'];
     let lastError = null;
 
     for (const modelName of modelsToTry) {
@@ -181,7 +181,8 @@ class GeminiService {
       If it's a math problem, show calculation steps.
     `;
 
-    const modelsToTry = ['gemini-1.5-pro-002', 'gemini-1.5-flash-001', 'gemini-1.5-pro'];
+    // Try Gemini 2.0 Flash first
+    const modelsToTry = ['gemini-2.0-flash-exp', 'gemini-1.5-pro-002', 'gemini-1.5-flash-001', 'gemini-1.5-pro'];
     let lastError = null;
 
     for (const modelName of modelsToTry) {
