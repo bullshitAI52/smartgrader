@@ -28,12 +28,76 @@ class GeminiService {
   private flashModel: GenerativeModel | null = null;
   private proModel: GenerativeModel | null = null;
   private apiKey: string | null = null;
+  private qwenApiKey: string | null = null;
+  private activeProvider: 'google' | 'qwen' = 'google';
 
-  setApiKey(key: string) {
-    this.apiKey = key;
-    this.flashModel = null;
-    this.proModel = null;
+  setApiKey(key: string, provider: 'google' | 'qwen' = 'google') {
+    if (provider === 'google') {
+      this.apiKey = key;
+      this.flashModel = null;
+      this.proModel = null;
+    } else {
+      this.qwenApiKey = key;
+    }
+    this.activeProvider = provider;
   }
+
+  // ... (keep ensureInitialized)
+
+  // Implementation of Qwen VL Call
+  private async callQwenVL(prompt: string, images: File[]): Promise<string> {
+    if (!this.qwenApiKey) throw new Error('Qwen API Key not set');
+
+    const messages = [
+      {
+        role: 'user',
+        content: [
+          { text: prompt },
+          ...await Promise.all(images.map(async (img) => ({ image: await this.fileToDataUrl(img) })))
+        ]
+      }
+    ];
+
+    const response = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.qwenApiKey}`,
+        'Content-Type': 'application/json',
+        'X-DashScope-WorkSpace': 'modal' // Optional
+      },
+      body: JSON.stringify({
+        model: 'qwen-vl-max',
+        input: { messages }
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Qwen API Error: ${err}`);
+    }
+
+    const data = await response.json();
+    if (data.output?.choices?.[0]?.message?.content) {
+      // Qwen VL Max currently returns mixed content, sometimes array. 
+      // Usually content is a list of {text: ...}.
+      const content = data.output.choices[0].message.content;
+      if (Array.isArray(content)) {
+        return content.map((c: any) => c.text).join('');
+      }
+      return typeof content === 'string' ? content : JSON.stringify(content);
+    }
+    throw new Error('Invalid Qwen Response');
+  }
+
+  private async fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
 
   private ensureInitialized() {
     if (!this.flashModel || !this.proModel) {
@@ -52,7 +116,53 @@ class GeminiService {
     images: File[],
     totalMaxScore: number = 100
   ): Promise<ExamGradingResult> {
-    // ... (keep ensureInitialized and genAI setup) ...
+
+    // Check Active Provider: Qwen
+    if (this.activeProvider === 'qwen') {
+      if (!this.qwenApiKey) throw new Error('请先设置通义千问 API Key');
+
+      const prompt = `
+            You are an expert exam grader. Analyze the provided exam images and outputs strictly legitimate JSON.
+            
+            Format Requirements:
+            1. Total Score & Max Score (${totalMaxScore})
+            2. For each question: status (correct/wrong), score, deduction, analysis.
+            3. Return JSON Structure:
+            {
+                "total_score": number,
+                "total_max_score": ${totalMaxScore},
+                "pages": [
+                {
+                    "image_url": "page_1",
+                    "page_score": number,
+                    "questions": [
+                    {
+                        "id": number,
+                        "status": "correct"|"wrong"|"partial",
+                        "score_obtained": number,
+                        "score_max": number,
+                        "deduction": number,
+                        "box_2d": [0,0,0,0],
+                        "analysis": "string"
+                    }
+                    ]
+                }
+                ],
+                "summary_tags": ["tag1", "tag2"]
+            }
+         `;
+
+      try {
+        const text = await this.callQwenVL(prompt, images);
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error('Qwen response did not contain valid JSON');
+        return JSON.parse(jsonMatch[0]) as ExamGradingResult;
+      } catch (e: any) {
+        throw new Error(`Qwen Grading Failed: ${e.message}`);
+      }
+    }
+
+    // Default Google Logic
     this.ensureInitialized();
     const genAI = new GoogleGenerativeAI(this.apiKey!);
 
@@ -141,6 +251,15 @@ class GeminiService {
 
   // New Method: OCR
   async recognizeText(image: File): Promise<string> {
+    if (this.activeProvider === 'qwen') {
+      const prompt = "Please extract all the text from this image exactly as it appears. Preserve formatting where possible.";
+      try {
+        return await this.callQwenVL(prompt, [image]);
+      } catch (e: any) {
+        throw new Error(`Qwen OCR Failed: ${e.message}`);
+      }
+    }
+
     this.ensureInitialized();
     const genAI = new GoogleGenerativeAI(this.apiKey!);
     const base64 = await this.fileToBase64(image);
@@ -168,6 +287,21 @@ class GeminiService {
 
   // New Method: Homework Solver
   async solveHomework(image: File, instruction?: string): Promise<string> {
+    if (this.activeProvider === 'qwen') {
+      const prompt = `
+          You are a helpful AI tutor. The user has uploaded a homework problem.
+          Instruction: ${instruction || "Solve this problem step-by-step and explain the concepts."}
+          
+          Please provide a clear, well-formatted response using Markdown.
+          If it's a math problem, show calculation steps.
+        `;
+      try {
+        return await this.callQwenVL(prompt, [image]);
+      } catch (e: any) {
+        throw new Error(`Qwen Homework Failed: ${e.message}`);
+      }
+    }
+
     this.ensureInitialized();
     const genAI = new GoogleGenerativeAI(this.apiKey!);
     const base64 = await this.fileToBase64(image);

@@ -20,6 +20,7 @@ export default function Home() {
   // -- Shared State --
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [apiKey, setApiKey] = useState('');
+  const [provider, setProvider] = useState<'google' | 'qwen'>('google');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -41,10 +42,13 @@ export default function Home() {
 
   // -- Init --
   useEffect(() => {
-    const storedKey = localStorage.getItem('gemini_api_key');
+    const storedProvider = (localStorage.getItem('ai_provider') as 'google' | 'qwen') || 'google';
+    setProvider(storedProvider);
+
+    const storedKey = localStorage.getItem(storedProvider === 'google' ? 'gemini_api_key' : 'qwen_api_key');
     if (storedKey) {
       setApiKey(storedKey);
-      geminiService.setApiKey(storedKey);
+      geminiService.setApiKey(storedKey, storedProvider);
     } else {
       setShowApiKeyModal(true);
     }
@@ -55,8 +59,15 @@ export default function Home() {
       setError('API Key 不能为空');
       return;
     }
-    localStorage.setItem('gemini_api_key', apiKey);
-    geminiService.setApiKey(apiKey);
+
+    if (provider === 'google') {
+      localStorage.setItem('gemini_api_key', apiKey);
+    } else {
+      localStorage.setItem('qwen_api_key', apiKey);
+    }
+    localStorage.setItem('ai_provider', provider);
+
+    geminiService.setApiKey(apiKey, provider);
     setShowApiKeyModal(false);
   };
 
@@ -196,20 +207,57 @@ export default function Home() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-indigo-600">
               <Settings2 className="w-5 h-5" />
-              设置 API Key
+              设置 AI 模型 API Key
             </DialogTitle>
             <DialogDescription>
-              请输入您的 Google Gemini API Key 以使用 AI 功能。
+              请选择模型提供商并输入对应的 API Key。
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Input
-              type="password"
-              placeholder="sk-..."
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="bg-gray-100 border-transparent focus:bg-white focus:border-indigo-500 transition-all font-mono"
-            />
+
+          <div className="py-4 space-y-4">
+            {/* Provider Selector */}
+            <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
+              <button
+                onClick={() => {
+                  setProvider('google');
+                  setApiKey(localStorage.getItem('gemini_api_key') || '');
+                }}
+                className={cn("flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2", provider === 'google' ? "bg-white shadow text-indigo-600" : "text-gray-500 hover:text-gray-700")}
+              >
+                <img src="https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg" className="w-4 h-4" alt="Google" />
+                Google Gemini
+              </button>
+              <button
+                onClick={() => {
+                  setProvider('qwen');
+                  setApiKey(localStorage.getItem('qwen_api_key') || '');
+                }}
+                className={cn("flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2", provider === 'qwen' ? "bg-white shadow text-indigo-600" : "text-gray-500 hover:text-gray-700")}
+              >
+                <BrainCircuit className="w-4 h-4" />
+                阿里通义千问
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">
+                {provider === 'google' ? 'Gemini API Key (AIza...)' : 'DashScope API Key (sk-...)'}
+              </label>
+              <Input
+                type="password"
+                placeholder={provider === 'google' ? "AIzaSy..." : "sk-..."}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                className="bg-gray-100 border-transparent focus:bg-white focus:border-indigo-500 transition-all font-mono"
+              />
+              <p className="text-xs text-gray-400">
+                {provider === 'google' ? (
+                  <a href="https://aistudio.google.com/app/apikey" target="_blank" className="hover:text-indigo-600 hover:underline">获取 Google Key &rarr;</a>
+                ) : (
+                  <a href="https://bailian.console.aliyun.com/" target="_blank" className="hover:text-indigo-600 hover:underline">获取阿里云 DashScope Key &rarr;</a>
+                )}
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button onClick={handleSaveApiKey} className="w-full bg-indigo-600 hover:bg-indigo-700">保存并继续</Button>
