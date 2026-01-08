@@ -315,7 +315,7 @@ class GeminiService {
   // New Method: OCR
   async recognizeText(image: File): Promise<string> {
     if (this.activeProvider === 'qwen') {
-      const prompt = "Please extract all the text from this image exactly as it appears. Preserve formatting where possible.";
+      const prompt = "请精确提取图片中的所有文字内容，保持原有格式。识别图片中的语言（中文/英文等），并用相同语言输出结果。";
       try {
         return await this.callQwenVL(prompt, [image]);
       } catch (e: any) {
@@ -328,7 +328,7 @@ class GeminiService {
     const base64 = await this.fileToBase64(image);
     const part = { inlineData: { data: base64, mimeType: image.type } };
 
-    const prompt = "Please extract all the text from this image exactly as it appears. Preserve formatting where possible.";
+    const prompt = "请精确提取图片中的所有文字内容，保持原有格式。识别图片中的语言（中文/英文等），并用相同语言输出结果。";
 
     // Try Gemini 2.0 Flash first
     const modelsToTry = ['gemini-2.0-flash-exp', 'gemini-1.5-flash-001', 'gemini-1.5-flash', 'gemini-1.5-pro-002', 'gemini-1.5-pro'];
@@ -352,11 +352,18 @@ class GeminiService {
   async solveHomework(image: File, instruction?: string): Promise<string> {
     if (this.activeProvider === 'qwen') {
       const prompt = `
-          You are a helpful AI tutor. The user has uploaded a homework problem.
-          Instruction: ${instruction || "Solve this problem step-by-step and explain the concepts."}
-          
-          Please provide a clear, well-formatted response using Markdown.
-          If it's a math problem, show calculation steps.
+你是一位专业的AI辅导老师。学生上传了一道作业题。
+
+【重要】语言要求：
+- 检测题目的语言（中文/英文等）
+- 必须使用与题目相同的语言进行解答
+- 中文题目用中文解答，英文题目用英文解答
+- 严禁混合语言
+
+用户补充说明：${instruction || "请逐步解答这道题，并解释相关概念。"}
+
+请提供清晰、格式良好的解答。
+如果是数学题，请展示详细的计算步骤。
         `;
       try {
         return await this.callQwenVL(prompt, [image]);
@@ -371,11 +378,18 @@ class GeminiService {
     const part = { inlineData: { data: base64, mimeType: image.type } };
 
     const prompt = `
-      You are a helpful AI tutor. The user has uploaded a homework problem.
-      Instruction: ${instruction || "Solve this problem step-by-step and explain the concepts."}
-      
-      Please provide a clear, well-formatted response using Markdown.
-      If it's a math problem, show calculation steps.
+你是一位专业的AI辅导老师。学生上传了一道作业题。
+
+【重要】语言要求：
+- 检测题目的语言（中文/英文等）
+- 必须使用与题目相同的语言进行解答
+- 中文题目用中文解答，英文题目用英文解答
+- 严禁混合语言
+
+用户补充说明：${instruction || "请逐步解答这道题，并解释相关概念。"}
+
+请提供清晰、格式良好的解答。
+如果是数学题，请展示详细的计算步骤。
     `;
 
     // Try Gemini 2.0 Flash first
